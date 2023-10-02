@@ -1,24 +1,58 @@
-# This example requires the 'message_content' intent.
-
+import asyncio
+from itertools import cycle
 import discord
 import json
 import os
 from discord import app_commands
 from dotenv import load_dotenv
 
+
+# keep alive for replit
+from flask import Flask
+from threading import Thread
+
+app = Flask('')
+
+@app.route('/')
+def main():
+  return "Your Bot Is Ready"
+
+def run():
+  app.run(host="0.0.0.0", port=8000)
+
+def keep_alive():
+  server = Thread(target=run)
+  server.start()
+
+
+
+
+
+
 load_dotenv()
 
 token = os.getenv('BOT_TOKEN')
-server_id = 1158146475327488001
-lvl_channel = 1158146475897917453
+server_id = os.getenv('SERVER_ID')
+lvl_channel = os.getenv('LVL_CHANNEL')
 
 intents = discord.Intents.default()
 client = discord.Client(intents=intents, activity=discord.CustomActivity(name='🎮 Working on Selenite.'))
 tree = app_commands.CommandTree(client)
 intents.message_content = True
 
+async def asynclog(data):
+    print(data)
+    logfile = open('data/log', "a")
+    logfile.write(f'\n{data}')
+    logfile.close()
 
-users = {}  # Initialize users as an empty dictionary
+def log(data):
+    print(data)
+    logfile = open('data/log', "a")
+    logfile.write(f'\n{data}')
+    logfile.close()
+
+users = {}
 try:
     with open("data/levels.json") as fp:
         users = json.load(fp)
@@ -30,28 +64,35 @@ def save_users():
         json.dump(users, fp, sort_keys=True, indent=4)
 
 
-def add_points(user: discord.User, users_dict):
+async def add_points(user: discord.User):
     id = str(user.id)
-    if id not in users_dict:
-        users_dict[id] = {"points": 0, "level": 1}
+    if id not in users:
+        users[id] = {"points": 0, "level": 1}
     
-    users_dict[id]["points"] += 1
+    users[id]["points"] += 1
     
-    if users_dict[id]["points"] >= 10 * users_dict[id]["level"]:
-        users_dict[id]["level"] += 1
-        users_dict[id]["points"] = 0
-    
-    print("{} now has {} points".format(user.name, users_dict[id]["points"]))
-    print("{} is at level {}".format(user.name, users_dict[id]["level"]))
+    if users[id]["points"] >= 10 * users[id]["level"]:
+        users[id]["level"] += 1
+        users[id]["points"] = 0
+        await send_message(f'{user.name} has leveled up to level {users[id]["level"]}!')
     
     save_users()
 
+async def send_message(message):
+    channel = client.get_channel(lvl_channel) # type: ignore
+    await channel.send(message) # type: ignore
+
+@client.event
+async def on_message_edit(before, after):
+    await asynclog(f'Message has been edited by {after.author.name}: {before.content} - {after.content}')
+
+@client.event
+async def on_message_delete(message):
+    await asynclog(f'Message by {message.author.name} has been deleted: {message.content}')
 
 def get_points(user: discord.User):
     id = str(user.id)
-    print(id)
     if id in users:
-        print("found user in level")
         return [users[id].get("points", 0), users[id].get("level", 1)]
     return [0, 1]
 
@@ -59,24 +100,35 @@ def get_points(user: discord.User):
 async def on_message(message):
     if message.author == client.user:
         return
-    
-    print("{} sent a message".format(message.author.name))
-    add_points(message.author, users)
+    await add_points(message.author)
 
 
 @client.event
 async def on_ready():
-    await tree.sync(guild=discord.Object(id=server_id))
-    print(f'logged into {client.user}')
+    await tree.sync(guild=discord.Object(id=server_id)) # type: ignore
+    await asynclog(f'logged into {client.user}')
+    await change_status()
 
-@tree.command(name = "embed", description = "Create an embed", guild=discord.Object(id=server_id))
-async def send_embed(interaction, title: str, description: str, color: str):
-    embed=discord.Embed(title=title, description=description, color=discord.Colour.from_str("#" + color))
-    await interaction.response.send_message(embed=embed)
+status = cycle(['👨‍💻 Working on Selenite.', '👀 Watching the Selenite Discord', '🎮 Playing on Selenite'])
 
-@tree.command(name = "level", description = "See your level", guild=discord.Object(id=server_id))
+
+async def change_status():
+  while True:
+    await client.change_presence(activity=discord.CustomActivity(next(status)))
+    await asyncio.sleep(30)
+
+@tree.command(name = "level", description = "See your level", guild=discord.Object(id=server_id)) # type: ignore
 async def send_level(interaction):
     lvls = get_points(interaction.user)
     await interaction.response.send_message(f'You are at level {lvls[1]}, and {lvls[0]}/{10*lvls[1]} points.')
 
-client.run(token)
+
+@tree.command(name = "purge", description = "Purge messages", guild=discord.Object(id=server_id)) # type: ignore
+async def purge(interaction, amount: int):
+    if(interaction.user.guild_permissions.manage_messages == True):
+        await interaction.response.send_message(f'Deleted {str(amount)} messages.', ephemeral=True, delete_after=5)
+        await interaction.channel.purge(limit=amount)
+    else:
+        await interaction.response.send_message(f'You need the Manage Messages permission to use this command.', ephemeral=True)
+
+client.run(token) # type: ignore
