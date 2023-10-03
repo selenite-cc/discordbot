@@ -4,36 +4,16 @@ import discord
 import json
 import os
 from discord import app_commands
-from dotenv import load_dotenv
 
 
-# keep alive for replit
-from flask import Flask
-from threading import Thread
-
-app = Flask('')
-
-@app.route('/')
-def main():
-  return "Your Bot Is Ready"
-
-def run():
-  app.run(host="0.0.0.0", port=8000)
-
-def keep_alive():
-  server = Thread(target=run)
-  server.start()
+from keep_alive import keep_alive
+keep_alive()
 
 
 
-
-
-
-load_dotenv()
-
-token = os.getenv('BOT_TOKEN')
-server_id = os.getenv('SERVER_ID')
-lvl_channel = os.getenv('LVL_CHANNEL')
+token = os.environ['BOT_TOKEN']
+server_id = os.environ['SERVER_ID']
+lvl_channel = os.environ['LVL_CHANNEL']
 
 intents = discord.Intents.default()
 client = discord.Client(intents=intents, activity=discord.CustomActivity(name='🎮 Working on Selenite.'))
