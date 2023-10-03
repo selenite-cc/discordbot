@@ -1,30 +1,27 @@
 import asyncio
 from itertools import cycle
+from typing import Optional
 import discord
 import json
 import os
 from discord import app_commands
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 
 from keep_alive import keep_alive
 keep_alive()
 
-
-
 token = os.environ['BOT_TOKEN']
 server_id = os.environ['SERVER_ID']
-lvl_channel = os.environ['LVL_CHANNEL']
+lvl_channel = int(os.environ['LVL_CHANNEL'])
 
 intents = discord.Intents.default()
-client = discord.Client(intents=intents, activity=discord.CustomActivity(name='🎮 Working on Selenite.'))
+client = discord.Client(intents=intents, activity=discord.CustomActivity(name='🎮 Working on Selenite.'), allowed_mentions=discord.AllowedMentions(roles=False, users=False, everyone=False))
 tree = app_commands.CommandTree(client)
 intents.message_content = True
-
-async def asynclog(data):
-    print(data)
-    logfile = open('data/log', "a")
-    logfile.write(f'\n{data}')
-    logfile.close()
 
 def log(data):
     print(data)
@@ -54,21 +51,22 @@ async def add_points(user: discord.User):
     if users[id]["points"] >= 10 * users[id]["level"]:
         users[id]["level"] += 1
         users[id]["points"] = 0
-        await send_message(f'{user.name} has leveled up to level {users[id]["level"]}!')
-    
+        channel = client.get_channel(lvl_channel)
+        await channel.send(f'{user.name} has leveled up to level {users[id]["level"]}!') # type: ignore
+        await checkRewards(user, users[id]["level"])
+      
     save_users()
 
-async def send_message(message):
-    channel = client.get_channel(lvl_channel) # type: ignore
-    await channel.send(message) # type: ignore
+async def checkRewards(user: discord.User, level: int):
+    return None; # currently no rewards
 
 @client.event
 async def on_message_edit(before, after):
-    await asynclog(f'Message has been edited by {after.author.name}: {before.content} - {after.content}')
+    log(f'Message has been edited by {after.author.name}: {before.content} - {after.content}')
 
 @client.event
 async def on_message_delete(message):
-    await asynclog(f'Message by {message.author.name} has been deleted: {message.content}')
+    log(f'Message by {message.author.name} has been deleted: {message.content}')
 
 def get_points(user: discord.User):
     id = str(user.id)
@@ -86,7 +84,9 @@ async def on_message(message):
 @client.event
 async def on_ready():
     await tree.sync(guild=discord.Object(id=server_id)) # type: ignore
-    await asynclog(f'logged into {client.user}')
+    logfile = open('data/log', "a")
+    logfile.write(f'\n\n\n\nBot has started. Logged in as {client.user}\n\n\n\n')
+    logfile.close()
     await change_status()
 
 status = cycle(['👨‍💻 Working on Selenite.', '👀 Watching the Selenite Discord', '🎮 Playing on Selenite'])
@@ -108,7 +108,28 @@ async def purge(interaction, amount: int):
     if(interaction.user.guild_permissions.manage_messages == True):
         await interaction.response.send_message(f'Deleted {str(amount)} messages.', ephemeral=True, delete_after=5)
         await interaction.channel.purge(limit=amount)
+        log(f'Purged {str(amount)} messages, initiated by {interaction.user.name}')
     else:
         await interaction.response.send_message(f'You need the Manage Messages permission to use this command.', ephemeral=True)
+
+@tree.command(name = "setlevel", description = "Set a user's level", guild=discord.Object(id=server_id)) # type: ignore
+async def setlevel(interaction, user: discord.User, level: int, points: Optional[int]):
+    if(interaction.user.guild_permissions.administrator == True):
+        if points is None:
+            points = 0
+        id = str(user.id);
+        users[id]["level"] = int(level)
+        users[id]["points"] = int(points)
+        await interaction.response.send_message(f"Set {user.name}'s level to level {level}, and set their points to {points}.", ephemeral=True)
+        save_users()
+        log(f"Set {user.name}'s level to level {level}, and set their points to {points}.")
+    else:
+        await interaction.response.send_message(f'You need the Administrator permission to use this command.', ephemeral=True)
+
+@tree.command(name = "echo", description = "Repeat your input", guild=discord.Object(id=server_id)) # type: ignore
+async def echo(interaction, text: str):
+    channel = client.get_channel(interaction.channel_id)
+    await channel.send(text) # type: ignore
+    await interaction.response.send_message(f'Sending message.', ephemeral=True)
 
 client.run(token) # type: ignore
