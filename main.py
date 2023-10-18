@@ -6,6 +6,8 @@ import json
 import os
 from discord import app_commands
 from dotenv import load_dotenv
+import time
+from profanity_check import predict
 
 load_dotenv()
 
@@ -17,6 +19,7 @@ keep_alive()
 token = os.environ['BOT_TOKEN']
 server_id = os.environ['SERVER_ID']
 lvl_channel = int(os.environ['LVL_CHANNEL'])
+widgets = os.environ['WIDGETS']
 
 intents = discord.Intents.default()
 client = discord.Client(intents=intents, activity=discord.CustomActivity(name='🎮 Working on Selenite.'), allowed_mentions=discord.AllowedMentions(roles=False, users=False, everyone=False))
@@ -44,9 +47,10 @@ def save_users():
 async def add_points(user: discord.User):
     id = str(user.id)
     if id not in users:
-        users[id] = {"points": 0, "level": 1}
-    
-    users[id]["points"] += 1
+        users[id] = {"points": 0, "level": 1, "lastmsg" : int(time.time())}
+    if users[id]["lastmsg"] + 10 <= int(time.time()):
+        users[id]["points"] += 1
+        users[id]["lastmsg"] = int(time.time())
     
     if users[id]["points"] >= 10 * users[id]["level"]:
         users[id]["level"] += 1
@@ -76,7 +80,13 @@ def get_points(user: discord.User):
 
 @client.event
 async def on_message(message):
-    if message.author == client.user:
+    if int(message.channel.id) == int(widgets):
+        filter = predict([message.content])
+        if filter >= 0.9:
+            await message.delete()
+            await message.channel.send(f'{message.author}\'s message was deleted.')
+            return
+    if message.author.bot or message.webhook_id:
         return
     await add_points(message.author)
 
