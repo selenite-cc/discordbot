@@ -8,6 +8,7 @@ from discord import app_commands
 from dotenv import load_dotenv
 import time
 from profanity_check import predict
+import re
 
 load_dotenv()
 
@@ -16,21 +17,32 @@ load_dotenv()
 from keep_alive import keep_alive
 keep_alive()
 
+swears = open("filterlist", "r")
+swears = swears.read().split('\n')
+specialchars = [*"'/.,<>[]=-`#%^&*()\""]
+replace = re.findall('..', "1i3e4a0o@a!i$svu")
+
+
+
 token = os.environ['BOT_TOKEN']
 server_id = os.environ['SERVER_ID']
 lvl_channel = int(os.environ['LVL_CHANNEL'])
 widgets = os.environ['WIDGETS']
+logs = os.environ['LOGS']
 
 intents = discord.Intents.default()
 client = discord.Client(intents=intents, activity=discord.CustomActivity(name='🎮 Working on Selenite.'), allowed_mentions=discord.AllowedMentions(roles=False, users=False, everyone=False))
 tree = app_commands.CommandTree(client)
 intents.message_content = True
 
-def log(data):
+async def log(data):
     print(data)
     logfile = open('data/log', "a")
     logfile.write(f'\n{data}')
     logfile.close()
+    channel = client.get_channel(int(logs))
+    await channel.send(data) # type: ignore
+
 
 users = {}
 try:
@@ -62,15 +74,15 @@ async def add_points(user: discord.User):
     save_users()
 
 async def checkRewards(user: discord.User, level: int):
-    return None; # currently no rewards
+    return None # currently no rewards
 
 @client.event
 async def on_message_edit(before, after):
-    log(f'Message has been edited by {after.author.name}: {before.content} - {after.content}')
+    await log(f'Message has been edited by {after.author.name}: {before.content} - {after.content}')
 
 @client.event
 async def on_message_delete(message):
-    log(f'Message by {message.author.name} has been deleted: {message.content}')
+    await log(f'Message by {message.author.name} has been deleted: {message.content}')
 
 def get_points(user: discord.User):
     id = str(user.id)
@@ -80,12 +92,24 @@ def get_points(user: discord.User):
 
 @client.event
 async def on_message(message):
+    if message.author.id == 1158146828592754851:
+        return
     if int(message.channel.id) == int(widgets):
-        filter = predict([message.content])
+        usrmsg = message.content
+        for repl in replace:
+            usrmsg = usrmsg.replace(repl[0], repl[1])
+        for char in specialchars:
+            usrmsg = usrmsg.replace(char, "")
+        filter = predict([usrmsg])
+        usrmsg = usrmsg.split(' ')
+        for word in usrmsg:
+            if word in swears:
+                await message.delete()
+                await message.channel.send(f'{message.author}\'s message was deleted.')
+                return
         if filter >= 0.9:
             await message.delete()
             await message.channel.send(f'{message.author}\'s message was deleted.')
-            return
     if message.author.bot or message.webhook_id:
         return
     await add_points(message.author)
@@ -118,7 +142,7 @@ async def purge(interaction, amount: int):
     if(interaction.user.guild_permissions.manage_messages == True):
         await interaction.response.send_message(f'Deleted {str(amount)} messages.', ephemeral=True, delete_after=5)
         await interaction.channel.purge(limit=amount)
-        log(f'Purged {str(amount)} messages, initiated by {interaction.user.name}')
+        await log(f'Purged {str(amount)} messages, initiated by {interaction.user.name}')
     else:
         await interaction.response.send_message(f'You need the Manage Messages permission to use this command.', ephemeral=True)
 
@@ -127,12 +151,12 @@ async def setlevel(interaction, user: discord.User, level: int, points: Optional
     if(interaction.user.guild_permissions.administrator == True):
         if points is None:
             points = 0
-        id = str(user.id);
+        id = str(user.id)
         users[id]["level"] = int(level)
         users[id]["points"] = int(points)
         await interaction.response.send_message(f"Set {user.name}'s level to level {level}, and set their points to {points}.", ephemeral=True)
         save_users()
-        log(f"Set {user.name}'s level to level {level}, and set their points to {points}.")
+        await log(f"Set {user.name}'s level to level {level}, and set their points to {points}.")
     else:
         await interaction.response.send_message(f'You need the Administrator permission to use this command.', ephemeral=True)
 
