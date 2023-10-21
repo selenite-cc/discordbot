@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 import time
 from profanity_check import predict
 import re
+import datetime
 
 load_dotenv()
 
@@ -120,9 +121,7 @@ async def on_message(message):
 @client.event
 async def on_ready():
     await tree.sync(guild=discord.Object(id=server_id)) # type: ignore
-    logfile = open('data/log', "a")
-    logfile.write(f'\n\n\n\nBot has started. Logged in as {client.user}\n\n\n\n')
-    logfile.close()
+    await log("Bot has started. Logged in as {client.user} - " + str(datetime.datetime.now()))
     await change_status()
 
 status = cycle(['👨‍💻 Working on Selenite.', '👀 Watching the Selenite Discord', '🎮 Playing on Selenite'])
