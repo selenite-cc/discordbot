@@ -78,6 +78,8 @@ async def checkRewards(user: discord.User, level: int):
 
 @client.event
 async def on_message_edit(before, after):
+    if(before.content == after.content):
+        return
     await log(f'Message has been edited by {after.author.name}: {before.content} - {after.content}')
 
 @client.event
