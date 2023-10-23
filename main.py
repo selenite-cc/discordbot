@@ -7,7 +7,7 @@ import os
 from discord import app_commands
 from dotenv import load_dotenv
 import time
-from profanity_check import predict
+from profanity_check import predict_prob
 import re
 import datetime
 
@@ -64,14 +64,14 @@ async def add_points(user: discord.User):
     if users[id]["lastmsg"] + 10 <= int(time.time()):
         users[id]["points"] += 1
         users[id]["lastmsg"] = int(time.time())
-    
+
     if users[id]["points"] >= 10 * users[id]["level"]:
         users[id]["level"] += 1
         users[id]["points"] = 0
         channel = client.get_channel(lvl_channel)
         await channel.send(f'{user.name} has leveled up to level {users[id]["level"]}!') # type: ignore
         await checkRewards(user, users[id]["level"])
-      
+
     save_users()
 
 async def checkRewards(user: discord.User, level: int):
@@ -97,22 +97,22 @@ def get_points(user: discord.User):
 async def on_message(message):
     if message.author.id == 1158146828592754851:
         return
-    if int(message.channel.id) == int(widgets):
+    if int(message.channel.id) == int(widgets) & message.author.id != 1014608595263950848:
         usrmsg = message.content
         for repl in replace:
             usrmsg = usrmsg.replace(repl[0], repl[1])
         for char in specialchars:
             usrmsg = usrmsg.replace(char, "")
-        filter = predict([usrmsg])
+        filter = predict_prob([usrmsg])
         usrmsg = usrmsg.split(' ')
         for word in usrmsg:
             if word in swears:
                 await message.delete()
-                await message.channel.send(f'{message.author}\'s message was deleted.')
+                await message.channel.send(f'{message.author}\'s message was deleted. Reason: filterlist - {word}')
                 return
-        if filter >= 0.9:
+        if filter >= 0.7:
             await message.delete()
-            await message.channel.send(f'{message.author}\'s message was deleted.')
+            await message.channel.send(f'{message.author}\'s message was deleted. Reason: probability of msg being innapropriate was {filter}')
     if message.author.bot or message.webhook_id:
         return
     await add_points(message.author)
