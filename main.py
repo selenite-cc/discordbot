@@ -97,7 +97,7 @@ def get_points(user: discord.User):
 async def on_message(message):
     if message.author.id == 1158146828592754851:
         return
-    if int(message.channel.id) == int(widgets) & message.author.id != 1014608595263950848:
+    if int(message.channel.id) == int(widgets) and message.author.id != 1014608595263950848:
         usrmsg = message.content
         for repl in replace:
             usrmsg = usrmsg.replace(repl[0], repl[1])
